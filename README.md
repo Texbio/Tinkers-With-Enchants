@@ -1,6 +1,7 @@
 # Tinkers with Enchants
 
 A Minecraft Forge mod for **1.20.1** that enables vanilla and modded enchantments on [Tinkers' Construct](https://www.curseforge.com/minecraft/mc-mods/tinkers-construct) tools, weapons, and armor.
+</br >\- Used AI to help make the mod
 
 ## Features
 
