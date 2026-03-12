@@ -29,29 +29,6 @@ A Minecraft Forge mod for **1.20.1** that enables vanilla and modded enchantment
 
 Mods that use standard `EnchantmentCategory` (WEAPON, DIGGER, BOW, ARMOR, etc.) work with zero configuration. For mods that create custom categories with `instanceof` checks against vanilla classes, TWE probes the category with vanilla reference items to determine what it represents and maps it to the correct TConstruct tool types.
 
-## Supported Enchantments
-
-### Melee
-Sharpness, Smite, Bane of Arthropods, Fire Aspect, Knockback, Sweeping Edge, Looting
-
-### Ranged
-Power, Flame, Punch, Piercing, Multishot, Quick Charge, Infinity
-
-### Mining
-Efficiency, Fortune, Silk Touch
-
-### Fishing
-Lure, Luck of the Sea
-
-### Armor
-Protection (all variants), Feather Falling, Respiration, Aqua Affinity, Depth Strider, Thorns, Soul Speed, Swift Sneak, Frost Walker
-
-### Durability
-Unbreaking, Mending
-
-### Curses
-Curse of Vanishing, Curse of Binding
-
 ## Configuration
 
 Config file: `config/tinkerswithenchants-common.toml`
