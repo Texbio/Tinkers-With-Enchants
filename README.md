@@ -28,18 +28,7 @@ A Minecraft Forge mod for **1.20.1** that enables vanilla and modded enchantment
 
 ### How Modded Enchantments Work
 
-Mods that use standard `EnchantmentCategory` (WEAPON, DIGGER, BOW, ARMOR, etc.) work with zero configuration. For mods that create custom categories with `instanceof` checks against vanilla classes, TWE probes the category with vanilla reference items to determine what it represents and maps it to the correct TConstruct tool types.
-
-## Configuration
-
-Config file: `config/tinkerswithenchants-common.toml`
-
-| Option | Default | Description |
-|---|---|---|
-| `enchantability` | 14 | Enchantability value for TConstruct tools (vanilla diamond = 10, gold = 22) |
-| `allowEnchantingTable` | true | Allow enchanting at vanilla/modded enchanting tables |
-| `allowAnvil` | true | Allow applying enchanted books via anvil |
-| `filterArmorEnchantments` | true | Prevent armor enchantments from appearing on non-armor tools |
+Mods that use standard `EnchantmentCategory` (WEAPON, DIGGER, BOW, ARMOR, etc.), so in theory it should work with zero configuration. For mods that create custom categories with `instanceof` checks against vanilla classes, TWE probes the category with vanilla reference items to determine what it represents and maps it to the correct TConstruct tool types.
 
 ## Commands
 
