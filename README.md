@@ -32,14 +32,13 @@ Mods that use standard `EnchantmentCategory` (WEAPON, DIGGER, BOW, ARMOR, etc.) 
 
 ## Configuration
 
-Config file: `config/tinkerswithenchants-common.toml`
+**Client config:** `config/tinkerswithenchants-client.toml`
 
 | Option | Default | Description |
 |---|---|---|
-| `enchantability` | 14 | Enchantability value for TConstruct tools (vanilla diamond = 10, gold = 22) |
-| `allowEnchantingTable` | true | Allow enchanting at vanilla/modded enchanting tables |
-| `allowAnvil` | true | Allow applying enchanted books via anvil |
-| `filterArmorEnchantments` | true | Prevent armor enchantments from appearing on non-armor tools |
+| `showGlint` | true | Show enchantment glint on TConstruct items (requires rejoin to take effect) |
+
+Enchantability is computed automatically from tool durability — higher-tier materials produce better enchantment rolls. Gold head materials receive a minimum of 22 (matching vanilla gold).
 
 ## Commands
 

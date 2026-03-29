@@ -159,12 +159,11 @@ public class CrescendoHandler {
      * Looks up Apotheosis's Crescendo enchantment level on the weapon.
      * Returns 0 if Apotheosis isn't installed or enchant not present.
      */
-    @SuppressWarnings("removal")
     private static int getCrescendoLevel(ItemStack weapon) {
         if (!crescendoResolved) {
             crescendoResolved = true;
             cachedCrescendo = ForgeRegistries.ENCHANTMENTS.getValue(
-                    new ResourceLocation("apotheosis", "crescendo"));
+                    ResourceLocation.fromNamespaceAndPath("apotheosis", "crescendo"));
         }
         if (cachedCrescendo == null) return 0;
         return EnchantmentHelper.getTagEnchantmentLevel(cachedCrescendo, weapon);

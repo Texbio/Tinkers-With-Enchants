@@ -70,9 +70,19 @@ public class TWECommand {
                                 .then(Commands.argument("option", StringArgumentType.word())
                                         .suggests((ctx, builder) -> {
                                             builder.suggest("all");
+                                            builder.suggest("held");
                                             return builder.buildFuture();
                                         })
                                         .executes(TWECommand::handleOption)))
+                        .then(Commands.literal("info")
+                                .then(Commands.literal("enchantability")
+                                        .executes(TWECommand::infoEnchantability))
+                                .then(Commands.literal("unbreaking")
+                                        .executes(TWECommand::infoUnbreaking))
+                                .then(Commands.literal("sweep")
+                                        .executes(TWECommand::infoSweep))
+                                .then(Commands.literal("enchants")
+                                        .executes(TWECommand::infoEnchants)))
         );
     }
 
@@ -110,8 +120,11 @@ public class TWECommand {
         if ("all".equalsIgnoreCase(option)) {
             return dumpAll(source);
         }
+        if ("held".equalsIgnoreCase(option)) {
+            return showHeldTool(ctx);
+        }
 
-        source.sendFailure(Component.literal("Unknown option: " + option + ". Use 'all'."));
+        source.sendFailure(Component.literal("Unknown option: " + option + ". Use 'held' or 'all'."));
         return 0;
     }
 
@@ -128,25 +141,88 @@ public class TWECommand {
                 pw.println("Generated: " + LocalDateTime.now());
                 pw.println();
 
-                int count = 0;
+                // ── Pre-compute: all enchantments by mod ──
+                Map<String, List<String>> enchantsByMod = new TreeMap<>();
+                for (Enchantment ench : ForgeRegistries.ENCHANTMENTS.getValues()) {
+                    ResourceLocation rl = ForgeRegistries.ENCHANTMENTS.getKey(ench);
+                    if (rl != null) {
+                        enchantsByMod.computeIfAbsent(rl.getNamespace(), k -> new ArrayList<>())
+                                .add(rl.toString() + " [" + ench.category.name() + "]");
+                    }
+                }
+
+                // ── Pre-compute: tool reports + track mapped enchants ──
+                Set<Enchantment> mappedEnchants = new HashSet<>();
+                List<String[]> toolReports = new ArrayList<>(); // [header, body]
                 for (Item item : ForgeRegistries.ITEMS.getValues()) {
                     if (!(item instanceof IModifiable)) continue;
 
                     ItemStack stack = new ItemStack(item);
                     ResourceLocation id = ForgeRegistries.ITEMS.getKey(item);
 
-                    pw.println("────────────────────────────────────────");
-                    pw.println("Item: " + id);
-
-                    List<String> textLines = buildToolReportText(stack);
-                    for (String line : textLines) {
-                        pw.println("  " + line);
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("────────────────────────────────────────\n");
+                    sb.append("Item: ").append(id).append("\n");
+                    for (String line : buildToolReportText(stack)) {
+                        sb.append("  ").append(line).append("\n");
                     }
-                    pw.println();
-                    count++;
+
+                    for (Enchantment ench : ForgeRegistries.ENCHANTMENTS.getValues()) {
+                        if (TWEEnchantUtil.canEnchant(stack, ench)) {
+                            mappedEnchants.add(ench);
+                        }
+                    }
+                    toolReports.add(new String[]{String.valueOf(id), sb.toString()});
                 }
 
-                pw.println("=== Total: " + count + " TConstruct items ===");
+                // ── Pre-compute: unmapped enchantments ──
+                List<String> unmapped = new ArrayList<>();
+                for (Enchantment ench : ForgeRegistries.ENCHANTMENTS.getValues()) {
+                    if (!mappedEnchants.contains(ench)) {
+                        ResourceLocation rl = ForgeRegistries.ENCHANTMENTS.getKey(ench);
+                        if (rl != null) {
+                            unmapped.add(rl + " [" + ench.category.name() + "]");
+                        }
+                    }
+                }
+                Collections.sort(unmapped);
+
+                // ══════════ Write: Enchantments by mod ══════════
+                pw.println("════════════════════════════════════════");
+                pw.println("  ALL REGISTERED ENCHANTMENTS (by mod)");
+                pw.println("════════════════════════════════════════");
+                for (Map.Entry<String, List<String>> entry : enchantsByMod.entrySet()) {
+                    pw.println("  " + entry.getKey() + ":");
+                    Collections.sort(entry.getValue());
+                    for (String e : entry.getValue()) {
+                        pw.println("    " + e);
+                    }
+                }
+                pw.println();
+
+                // ══════════ Write: Unmapped enchantments ══════════
+                pw.println("════════════════════════════════════════");
+                pw.println("  UNMAPPED ENCHANTMENTS");
+                pw.println("  (not compatible with any TC item)");
+                pw.println("════════════════════════════════════════");
+                if (unmapped.isEmpty()) {
+                    pw.println("  (none — all enchantments mapped to at least one TC item)");
+                } else {
+                    for (String e : unmapped) {
+                        pw.println("  " + e);
+                    }
+                }
+                pw.println();
+
+                // ══════════ Write: Tool reports ══════════
+                for (String[] report : toolReports) {
+                    pw.print(report[1]);
+                    pw.println();
+                }
+
+                pw.println("=== Total: " + toolReports.size() + " TConstruct items, "
+                        + mappedEnchants.size() + " mapped enchantments, "
+                        + unmapped.size() + " unmapped ===");
             }
 
             String folderPath = configDir.getAbsolutePath();
@@ -206,8 +282,8 @@ public class TWECommand {
         // Tags
         List<String> tags = new ArrayList<>();
         for (String tagName : CHECKED_TAGS) {
-            @SuppressWarnings("removal")
-            TagKey<Item> tag = ItemTags.create(new ResourceLocation(tagName));
+
+            TagKey<Item> tag = ItemTags.create(ResourceLocation.parse(tagName));
             if (stack.is(tag)) {
                 tags.add(tagName.replace("tconstruct:", ""));
             }
@@ -257,7 +333,6 @@ public class TWECommand {
     /**
      * Builds a plain-text report for file dump.
      */
-    @SuppressWarnings("removal")
     private static List<String> buildToolReportText(ItemStack stack) {
         List<String> lines = new ArrayList<>();
 
@@ -271,8 +346,8 @@ public class TWECommand {
         // Tags
         List<String> tags = new ArrayList<>();
         for (String tagName : CHECKED_TAGS) {
-            @SuppressWarnings("removal")
-            TagKey<Item> tag = ItemTags.create(new ResourceLocation(tagName));
+
+            TagKey<Item> tag = ItemTags.create(ResourceLocation.parse(tagName));
             if (stack.is(tag)) tags.add(tagName.replace("tconstruct:", ""));
         }
         lines.add("Tags: " + (tags.isEmpty() ? "(none)" : String.join(", ", tags)));
@@ -294,5 +369,341 @@ public class TWECommand {
         lines.add("Compatible: " + (compatible.isEmpty() ? "(none)" : String.join(", ", compatible)));
 
         return lines;
+    }
+
+    // ── Info commands ───────────────────────────────────────────────────
+
+    private static ServerPlayer requirePlayerWithTool(CommandContext<CommandSourceStack> ctx) {
+        ServerPlayer player = ctx.getSource().getPlayer();
+        if (player == null) {
+            ctx.getSource().sendFailure(Component.literal("Must be run by a player"));
+            return null;
+        }
+        if (player.getMainHandItem().isEmpty()) {
+            ctx.getSource().sendFailure(Component.literal("Hold a tool in your main hand"));
+            return null;
+        }
+        if (!(player.getMainHandItem().getItem() instanceof IModifiable)) {
+            ctx.getSource().sendFailure(Component.literal("Not a TConstruct tool"));
+            return null;
+        }
+        return player;
+    }
+
+    /**
+     * /twe info enchantability — shows enchantability calculation breakdown
+     */
+    private static int infoEnchantability(CommandContext<CommandSourceStack> ctx) {
+        ServerPlayer player = requirePlayerWithTool(ctx);
+        if (player == null) return 0;
+
+        CommandSourceStack source = ctx.getSource();
+        ItemStack stack = player.getMainHandItem();
+        ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
+
+        source.sendSuccess(() -> Component.literal("══ Enchantability Info ══")
+                .withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD), false);
+        source.sendSuccess(() -> Component.literal("Item: ").withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(String.valueOf(id)).withStyle(ChatFormatting.WHITE)), false);
+
+        try {
+            ToolStack tool = ToolStack.from(stack);
+            int durability = tool.getStats().getInt(ToolStats.DURABILITY);
+            boolean unbreakable = tool.isUnbreakable();
+            boolean canBeDepeleted = stack.getItem().canBeDepleted();
+
+            source.sendSuccess(() -> Component.literal("Durability: ").withStyle(ChatFormatting.GRAY)
+                    .append(Component.literal(String.valueOf(durability)).withStyle(ChatFormatting.WHITE)), false);
+            source.sendSuccess(() -> Component.literal("Unbreakable: ").withStyle(ChatFormatting.GRAY)
+                    .append(Component.literal(String.valueOf(unbreakable)).withStyle(
+                            unbreakable ? ChatFormatting.GREEN : ChatFormatting.RED)), false);
+            source.sendSuccess(() -> Component.literal("Can be depleted: ").withStyle(ChatFormatting.GRAY)
+                    .append(Component.literal(String.valueOf(canBeDepeleted)).withStyle(
+                            canBeDepeleted ? ChatFormatting.GREEN : ChatFormatting.RED)), false);
+
+            // Multiplier source
+            net.minecraft.nbt.CompoundTag tag = stack.getTag();
+            float nbtMultiplier = 0;
+            if (tag != null && tag.contains("tic_multipliers")) {
+                net.minecraft.nbt.CompoundTag multipliers = tag.getCompound("tic_multipliers");
+                if (multipliers.contains("tconstruct:durability")) {
+                    nbtMultiplier = multipliers.getFloat("tconstruct:durability");
+                }
+            }
+            final float nbtMult = nbtMultiplier;
+
+            if (nbtMult > 0) {
+                source.sendSuccess(() -> Component.literal("Multiplier: ").withStyle(ChatFormatting.GRAY)
+                        .append(Component.literal(String.format("%.2f", nbtMult)).withStyle(ChatFormatting.AQUA))
+                        .append(Component.literal(" (from NBT)").withStyle(ChatFormatting.DARK_GRAY)), false);
+            } else {
+                Set<EnchantmentCategory> cats = TWEEnchantUtil.getCategories(stack);
+                float estMult = 1.0f;
+                if (cats.contains(EnchantmentCategory.ARMOR_CHEST)) estMult = 3.5f;
+                else if (cats.contains(EnchantmentCategory.ARMOR_LEGS)) estMult = 3.0f;
+                else if (cats.contains(EnchantmentCategory.ARMOR_HEAD)) estMult = 2.0f;
+                else if (cats.contains(EnchantmentCategory.ARMOR_FEET)) estMult = 2.0f;
+                final float est = estMult;
+                source.sendSuccess(() -> Component.literal("Multiplier: ").withStyle(ChatFormatting.GRAY)
+                        .append(Component.literal(String.format("%.2f", est)).withStyle(ChatFormatting.YELLOW))
+                        .append(Component.literal(" (estimated from category)").withStyle(ChatFormatting.DARK_GRAY)), false);
+            }
+
+            float effectiveMultiplier = nbtMult > 0 ? nbtMult : 1.0f;
+            // Recalculate with category fallback like the actual code does
+            if (nbtMult <= 0) {
+                Set<EnchantmentCategory> cats = TWEEnchantUtil.getCategories(stack);
+                if (cats.contains(EnchantmentCategory.ARMOR_CHEST)) effectiveMultiplier = 3.5f;
+                else if (cats.contains(EnchantmentCategory.ARMOR_LEGS)) effectiveMultiplier = 3.0f;
+                else if (cats.contains(EnchantmentCategory.ARMOR_HEAD)) effectiveMultiplier = 2.0f;
+                else if (cats.contains(EnchantmentCategory.ARMOR_FEET)) effectiveMultiplier = 2.0f;
+            }
+            float baseDurability = durability / effectiveMultiplier;
+            final float baseDur = baseDurability;
+
+            source.sendSuccess(() -> Component.literal("Base durability: ").withStyle(ChatFormatting.GRAY)
+                    .append(Component.literal(String.format("%.1f", baseDur)).withStyle(ChatFormatting.WHITE))
+                    .append(Component.literal(String.format(" (%d / %.2f)", durability, durability / baseDur))
+                            .withStyle(ChatFormatting.DARK_GRAY)), false);
+
+            // Gold check
+            boolean hasGold = false;
+            try {
+                var materials = tool.getMaterials();
+                if (materials.size() > 0) {
+                    String path = materials.get(0).getId().getPath();
+                    hasGold = path.contains("gold");
+                }
+            } catch (Exception ignored) {}
+            final boolean gold = hasGold;
+
+            if (gold) {
+                source.sendSuccess(() -> Component.literal("Gold head: ").withStyle(ChatFormatting.GRAY)
+                        .append(Component.literal("YES — minimum 22")
+                                .withStyle(ChatFormatting.GOLD)), false);
+            }
+
+            // Materials list
+            try {
+                var materials = tool.getMaterials();
+                List<String> matNames = new ArrayList<>();
+                for (int i = 0; i < materials.size(); i++) {
+                    matNames.add(materials.get(i).getId().toString());
+                }
+                source.sendSuccess(() -> Component.literal("Materials: ").withStyle(ChatFormatting.GRAY)
+                        .append(Component.literal(String.join(", ", matNames))
+                                .withStyle(ChatFormatting.WHITE)), false);
+            } catch (Exception ignored) {}
+
+            // Final result
+            int computed = TWEEnchantUtil.computeEnchantability(stack);
+            source.sendSuccess(() -> Component.literal("Enchantability: ").withStyle(ChatFormatting.GRAY)
+                    .append(Component.literal(String.valueOf(computed))
+                            .withStyle(ChatFormatting.GREEN, ChatFormatting.BOLD))
+                    .append(Component.literal(vanillaReference(computed))
+                            .withStyle(ChatFormatting.DARK_GRAY)), false);
+
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Error: " + e.getMessage()));
+        }
+        return 1;
+    }
+
+    /** Returns a vanilla comparison string for an enchantability value */
+    private static String vanillaReference(int enchantability) {
+        if (enchantability >= 22) return " (≥ gold)";
+        if (enchantability >= 15) return " (≈ leather armor)";
+        if (enchantability >= 10) return " (≈ iron/diamond)";
+        if (enchantability >= 5)  return " (≈ stone)";
+        return " (low)";
+    }
+
+    /**
+     * /twe info unbreaking — shows Unbreaking enchant level on held tool
+     */
+    private static int infoUnbreaking(CommandContext<CommandSourceStack> ctx) {
+        ServerPlayer player = requirePlayerWithTool(ctx);
+        if (player == null) return 0;
+
+        CommandSourceStack source = ctx.getSource();
+        ItemStack stack = player.getMainHandItem();
+
+        source.sendSuccess(() -> Component.literal("══ Unbreaking Info ══")
+                .withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD), false);
+
+        int nbtLevel = EnchantmentHelper.getTagEnchantmentLevel(
+                net.minecraft.world.item.enchantment.Enchantments.UNBREAKING, stack);
+        boolean isArmor = stack.getItem() instanceof net.minecraft.world.item.ArmorItem;
+
+        source.sendSuccess(() -> Component.literal("Unbreaking level (NBT): ").withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(String.valueOf(nbtLevel))
+                        .withStyle(nbtLevel > 0 ? ChatFormatting.GREEN : ChatFormatting.RED)), false);
+        source.sendSuccess(() -> Component.literal("Is armor item: ").withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(String.valueOf(isArmor))
+                        .withStyle(ChatFormatting.WHITE)), false);
+
+        if (nbtLevel > 0) {
+            float toolChance = 1f / (nbtLevel + 1);
+            source.sendSuccess(() -> Component.literal("Damage chance (tools): ").withStyle(ChatFormatting.GRAY)
+                    .append(Component.literal(String.format("%.0f%%", toolChance * 100))
+                            .withStyle(ChatFormatting.AQUA)), false);
+            if (isArmor) {
+                float armorChance = 0.6f + 0.4f * toolChance;
+                source.sendSuccess(() -> Component.literal("Damage chance (armor): ").withStyle(ChatFormatting.GRAY)
+                        .append(Component.literal(String.format("%.0f%%", armorChance * 100))
+                                .withStyle(ChatFormatting.AQUA)), false);
+            }
+            source.sendSuccess(() -> Component.literal("Effective lifetime: ").withStyle(ChatFormatting.GRAY)
+                    .append(Component.literal(String.format("~%.1fx", (float)(nbtLevel + 1)))
+                            .withStyle(ChatFormatting.GREEN)), false);
+        }
+
+        // Check if tool also has Reinforced modifier
+        try {
+            ToolStack tool = ToolStack.from(stack);
+            for (var entry : tool.getModifierList()) {
+                if (entry.getId().toString().contains("reinforced")) {
+                    source.sendSuccess(() -> Component.literal("Reinforced modifier: ").withStyle(ChatFormatting.GRAY)
+                            .append(Component.literal("level " + entry.getLevel())
+                                    .withStyle(ChatFormatting.YELLOW))
+                            .append(Component.literal(" (stacks with Unbreaking)")
+                                    .withStyle(ChatFormatting.DARK_GRAY)), false);
+                }
+            }
+        } catch (Exception ignored) {}
+
+        return 1;
+    }
+
+    /**
+     * /twe info sweep — shows Sweeping Edge info for held tool
+     */
+    private static int infoSweep(CommandContext<CommandSourceStack> ctx) {
+        ServerPlayer player = requirePlayerWithTool(ctx);
+        if (player == null) return 0;
+
+        CommandSourceStack source = ctx.getSource();
+        ItemStack stack = player.getMainHandItem();
+
+        source.sendSuccess(() -> Component.literal("══ Sweeping Edge Info ══")
+                .withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD), false);
+
+        int sweepLevel = EnchantmentHelper.getTagEnchantmentLevel(
+                net.minecraft.world.item.enchantment.Enchantments.SWEEPING_EDGE, stack);
+        boolean hasSwordDig = stack.canPerformAction(ToolActions.SWORD_DIG)
+                || stack.canPerformAction(ToolActions.SWORD_SWEEP);
+        boolean hasHoeDig = stack.canPerformAction(ToolActions.HOE_DIG);
+        boolean isRanged = stack.is(ItemTags.create(ResourceLocation.parse("tconstruct:modifiable/ranged")));
+        boolean canSweep = hasSwordDig && !hasHoeDig && !isRanged;
+
+        source.sendSuccess(() -> Component.literal("Sweeping Edge (NBT): ").withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(String.valueOf(sweepLevel))
+                        .withStyle(sweepLevel > 0 ? ChatFormatting.GREEN : ChatFormatting.RED)), false);
+        source.sendSuccess(() -> Component.literal("Has sword_dig: ").withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(String.valueOf(hasSwordDig))
+                        .withStyle(hasSwordDig ? ChatFormatting.GREEN : ChatFormatting.RED)), false);
+        source.sendSuccess(() -> Component.literal("Has hoe_dig (blocker): ").withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(String.valueOf(hasHoeDig))
+                        .withStyle(hasHoeDig ? ChatFormatting.RED : ChatFormatting.GREEN)), false);
+        source.sendSuccess(() -> Component.literal("Is ranged (blocker): ").withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(String.valueOf(isRanged))
+                        .withStyle(isRanged ? ChatFormatting.RED : ChatFormatting.GREEN)), false);
+        source.sendSuccess(() -> Component.literal("Can receive Sweeping: ").withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(String.valueOf(canSweep))
+                        .withStyle(canSweep ? ChatFormatting.GREEN : ChatFormatting.RED, ChatFormatting.BOLD)), false);
+
+        if (sweepLevel > 0) {
+            float sweepPercent = (float) sweepLevel / (sweepLevel + 1);
+            source.sendSuccess(() -> Component.literal("Sweep damage %: ").withStyle(ChatFormatting.GRAY)
+                    .append(Component.literal(String.format("%.0f%% of base damage + 1", sweepPercent * 100))
+                            .withStyle(ChatFormatting.AQUA)), false);
+        }
+
+        // Check TConstruct sweep_percent from volatile data
+        try {
+            ToolStack tool = ToolStack.from(stack);
+            float tcSweep = tool.getVolatileData().getFloat(
+                    ResourceLocation.fromNamespaceAndPath("tconstruct", "sweep_percent"));
+            if (tcSweep > 0) {
+                source.sendSuccess(() -> Component.literal("TC sweep_percent: ").withStyle(ChatFormatting.GRAY)
+                        .append(Component.literal(String.format("%.0f%%", tcSweep * 100))
+                                .withStyle(ChatFormatting.YELLOW))
+                        .append(Component.literal(" (from modifier)")
+                                .withStyle(ChatFormatting.DARK_GRAY)), false);
+            }
+        } catch (Exception ignored) {}
+
+        return 1;
+    }
+
+    /**
+     * /twe info enchants — shows all enchantments (NBT + merged) on held tool
+     */
+    private static int infoEnchants(CommandContext<CommandSourceStack> ctx) {
+        ServerPlayer player = requirePlayerWithTool(ctx);
+        if (player == null) return 0;
+
+        CommandSourceStack source = ctx.getSource();
+        ItemStack stack = player.getMainHandItem();
+
+        source.sendSuccess(() -> Component.literal("══ Enchantments Info ══")
+                .withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD), false);
+
+        // Raw NBT enchantments
+        Map<Enchantment, Integer> nbtEnchants = new LinkedHashMap<>();
+        net.minecraft.nbt.ListTag nbtList = stack.getEnchantmentTags();
+        for (int i = 0; i < nbtList.size(); i++) {
+            net.minecraft.nbt.CompoundTag nbtTag = nbtList.getCompound(i);
+            Enchantment ench = ForgeRegistries.ENCHANTMENTS.getValue(
+                    ResourceLocation.parse(nbtTag.getString("id")));
+            if (ench != null) {
+                nbtEnchants.put(ench, nbtTag.getInt("lvl"));
+            }
+        }
+
+        if (nbtEnchants.isEmpty()) {
+            source.sendSuccess(() -> Component.literal("NBT enchantments: (none)")
+                    .withStyle(ChatFormatting.GRAY), false);
+        } else {
+            source.sendSuccess(() -> Component.literal("NBT enchantments:")
+                    .withStyle(ChatFormatting.GRAY), false);
+            for (Map.Entry<Enchantment, Integer> e : nbtEnchants.entrySet()) {
+                ResourceLocation rl = ForgeRegistries.ENCHANTMENTS.getKey(e.getKey());
+                source.sendSuccess(() -> Component.literal("  " + rl + " → " + e.getValue())
+                        .withStyle(ChatFormatting.LIGHT_PURPLE), false);
+            }
+        }
+
+        // Merged enchantments (NBT + modifier)
+        Map<Enchantment, Integer> merged = t.tinkerswithenchants.util.EnchantMergeUtil.getMergedEnchantments(stack);
+        Map<Enchantment, Integer> modifierOnly = new LinkedHashMap<>();
+        for (Map.Entry<Enchantment, Integer> e : merged.entrySet()) {
+            int nbtLevel = nbtEnchants.getOrDefault(e.getKey(), 0);
+            if (e.getValue() > nbtLevel || !nbtEnchants.containsKey(e.getKey())) {
+                modifierOnly.put(e.getKey(), e.getValue());
+            }
+        }
+
+        if (!modifierOnly.isEmpty()) {
+            source.sendSuccess(() -> Component.literal("From TConstruct modifiers:")
+                    .withStyle(ChatFormatting.GRAY), false);
+            for (Map.Entry<Enchantment, Integer> e : modifierOnly.entrySet()) {
+                ResourceLocation rl = ForgeRegistries.ENCHANTMENTS.getKey(e.getKey());
+                int nbtLevel = nbtEnchants.getOrDefault(e.getKey(), 0);
+                final String detail = nbtLevel > 0
+                        ? " (modifier " + e.getValue() + ", NBT " + nbtLevel + ", merged → " + Math.max(e.getValue(), nbtLevel) + ")"
+                        : " → " + e.getValue();
+                source.sendSuccess(() -> Component.literal("  " + rl + detail)
+                        .withStyle(ChatFormatting.YELLOW), false);
+            }
+        }
+
+        // Glint status
+        boolean glint = stack.hasFoil();
+        source.sendSuccess(() -> Component.literal("Shows glint: ").withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(String.valueOf(glint))
+                        .withStyle(glint ? ChatFormatting.GREEN : ChatFormatting.RED)), false);
+
+        return 1;
     }
 }

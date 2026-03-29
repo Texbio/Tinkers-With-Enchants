@@ -23,29 +23,31 @@ public abstract class ArmorItemMixin extends ArmorItem {
 
     @Override
     public int getEnchantmentValue() {
-        if (!TWEConfig.COMMON.allowEnchantingTable.get()
-                && !TWEConfig.COMMON.allowAnvil.get()) return 0;
-        return TWEConfig.COMMON.enchantability.get();
+        return TWEEnchantUtil.getCachedEnchantability();
+    }
+
+    /** Stack-aware enchantability for Forge code paths */
+    public int getEnchantmentValue(ItemStack stack) {
+        return TWEEnchantUtil.computeEnchantability(stack);
     }
 
     /** @author TinkersWithEnchants @reason enable enchanting table */
     @Overwrite
     public boolean isEnchantable(ItemStack stack) {
-        return TWEConfig.COMMON.allowEnchantingTable.get()
-                || TWEConfig.COMMON.allowAnvil.get();
+        TWEEnchantUtil.cacheEnchantability(stack);
+        return true;
     }
 
     /** @author TinkersWithEnchants @reason enable anvil enchanting */
     @Overwrite(remap = false)
     public boolean isBookEnchantable(ItemStack stack, ItemStack book) {
-        return TWEConfig.COMMON.allowAnvil.get();
+        return true;
     }
 
     /** @author TinkersWithEnchants @reason allow appropriate enchantments */
     @Overwrite(remap = false)
     public boolean canApplyAtEnchantingTable(ItemStack stack, Enchantment enchantment) {
-        if (!TWEConfig.COMMON.allowEnchantingTable.get()) return enchantment.isCurse();
-        return enchantment.isCurse() || TWEEnchantUtil.canEnchant(stack, enchantment);
+        return TWEEnchantUtil.canEnchant(stack, enchantment);
     }
 
     /** @author TinkersWithEnchants @reason ensure real NBT enchantments are never hidden */
@@ -63,6 +65,10 @@ public abstract class ArmorItemMixin extends ArmorItem {
     /** @author TinkersWithEnchants @reason show enchant glint when item has real enchantments */
     @Overwrite
     public boolean isFoil(ItemStack stack) {
+        if (!TWEConfig.CLIENT.showGlint.get()) {
+            return ModifierUtil.checkVolatileFlag(stack, IModifiable.SHINY);
+        }
         return ModifierUtil.checkVolatileFlag(stack, IModifiable.SHINY) || stack.isEnchanted();
     }
+
 }

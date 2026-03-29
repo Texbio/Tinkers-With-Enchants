@@ -251,12 +251,11 @@ public class ProjectileEnchantHandler {
      * Looks up Apotheosis's Endless Quiver enchantment level on the weapon.
      * Returns 0 if Apotheosis isn't installed or enchant not present.
      */
-    @SuppressWarnings("removal")
     private static int getEndlessQuiverLevel(ItemStack weapon) {
         if (!endlessQuiverResolved) {
             endlessQuiverResolved = true;
             cachedEndlessQuiver = ForgeRegistries.ENCHANTMENTS.getValue(
-                    new ResourceLocation("apotheosis", "endless_quiver"));
+                    ResourceLocation.fromNamespaceAndPath("apotheosis", "endless_quiver"));
         }
         if (cachedEndlessQuiver == null) return 0;
         return EnchantmentHelper.getTagEnchantmentLevel(cachedEndlessQuiver, weapon);

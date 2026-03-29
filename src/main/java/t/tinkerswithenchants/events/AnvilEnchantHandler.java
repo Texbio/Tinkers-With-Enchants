@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import slimeknights.tconstruct.library.tools.item.IModifiable;
 import t.tinkerswithenchants.TinkersWithEnchants;
-import t.tinkerswithenchants.config.TWEConfig;
 import t.tinkerswithenchants.util.TWEEnchantUtil;
 
 import java.util.HashMap;
@@ -46,7 +45,6 @@ public final class AnvilEnchantHandler {
         ItemStack right = event.getRight();
 
         if (!(left.getItem() instanceof IModifiable)) return;
-        if (!TWEConfig.COMMON.allowAnvil.get()) return;
         if (right.isEmpty() || !(right.getItem() instanceof EnchantedBookItem)) return;
 
         // Deserialize the book's ListTag into Map<Enchantment, Integer>

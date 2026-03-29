@@ -3,82 +3,70 @@ package t.tinkerswithenchants.config;
 import net.minecraftforge.common.ForgeConfigSpec;
 
 /**
- * Tinkers with Enchants common config.
- *
- * Loaded on both client and server.  All booleans are fully reloadable by
- * Forge via /forge reload on newer builds.
+ * Tinkers with Enchants configuration.
  */
 public final class TWEConfig {
 
     // -----------------------------------------------------------------------
-    // Singleton
+    // Server config
     // -----------------------------------------------------------------------
 
-    public static final Common COMMON;
-    public static final ForgeConfigSpec COMMON_SPEC;
+    public static final Server SERVER;
+    public static final ForgeConfigSpec SERVER_SPEC;
 
     static {
-        var pair = new ForgeConfigSpec.Builder().configure(Common::new);
-        COMMON      = pair.getLeft();
-        COMMON_SPEC = pair.getRight();
+        var serverPair = new ForgeConfigSpec.Builder().configure(Server::new);
+        SERVER      = serverPair.getLeft();
+        SERVER_SPEC = serverPair.getRight();
+    }
+
+    // -----------------------------------------------------------------------
+    // Client config
+    // -----------------------------------------------------------------------
+
+    public static final Client CLIENT;
+    public static final ForgeConfigSpec CLIENT_SPEC;
+
+    static {
+        var clientPair = new ForgeConfigSpec.Builder().configure(Client::new);
+        CLIENT      = clientPair.getLeft();
+        CLIENT_SPEC = clientPair.getRight();
     }
 
     private TWEConfig() {}
 
     // -----------------------------------------------------------------------
-    // Config schema
+    // Server config schema
     // -----------------------------------------------------------------------
 
-    public static final class Common {
+    public static final class Server {
 
-        /** How "enchantable" TConstruct tools appear to the enchanting table.
-         *
-         *  Vanilla reference values:
-         *    0  = TConstruct default (no enchanting)
-         *    1  = stone
-         *    5  = iron/diamond
-         *    9  = gold (very high)
-         *   14  = iron (balanced – our default)
-         *   22  = enchanted golden apple level
-         *
-         *  A higher value means better enchantment rolls from the table. */
-        public final ForgeConfigSpec.IntValue enchantability;
+        Server(ForgeConfigSpec.Builder builder) {
+            builder.comment("Tinkers with Enchants server configuration").push("general");
+            // Enchantability is now computed automatically from tool durability.
+            // Future server-side configs can be added here.
+            builder.pop();
+        }
+    }
 
-        /** Whether TConstruct tools can be enchanted via the enchanting table. */
-        public final ForgeConfigSpec.BooleanValue allowEnchantingTable;
+    // -----------------------------------------------------------------------
+    // Client config schema
+    // -----------------------------------------------------------------------
 
-        /** Whether TConstruct tools can receive enchantments from enchanted books
-         *  placed in an anvil. */
-        public final ForgeConfigSpec.BooleanValue allowAnvil;
+    public static final class Client {
 
-        /** When true, armor-only enchantments (Protection, Thorns, etc.) are
-         *  excluded from the enchanting-table pool for tool items. Set to false
-         *  to allow everything (might be useful for multi-tools). */
-        public final ForgeConfigSpec.BooleanValue filterArmorEnchantments;
+        /** Whether enchanted TConstruct items show the enchantment glint.
+         *  Requires rejoining the world to take effect. */
+        public final ForgeConfigSpec.BooleanValue showGlint;
 
-        Common(ForgeConfigSpec.Builder builder) {
-            builder.comment("Tinkers with Enchants configuration").push("general");
+        Client(ForgeConfigSpec.Builder builder) {
+            builder.comment("Tinkers with Enchants client configuration").push("rendering");
 
-            enchantability = builder
+            showGlint = builder
                     .comment(
-                            "Enchantability value for all TConstruct tool items.",
-                            "0 = disabled, 14 = iron (default), higher = better rolls.")
-                    .defineInRange("enchantability", 14, 1, 100);
-
-            allowEnchantingTable = builder
-                    .comment("Allow TConstruct tools to be enchanted at an enchanting table.")
-                    .define("allowEnchantingTable", true);
-
-            allowAnvil = builder
-                    .comment("Allow TConstruct tools to receive enchantments from enchanted books in an anvil.")
-                    .define("allowAnvil", true);
-
-            filterArmorEnchantments = builder
-                    .comment(
-                            "If true, armor-specific enchantments (Protection, Thorns, etc.) are",
-                            "not offered for tool items at the enchanting table.",
-                            "Does not affect anvil enchanting – all enchantments are always allowed there.")
-                    .define("filterArmorEnchantments", true);
+                            "Whether enchanted Tinkers' Construct items show the enchantment glint (shimmer).",
+                            "Requires rejoining the world to take effect.")
+                    .define("showGlint", true);
 
             builder.pop();
         }

@@ -68,8 +68,9 @@ public final class TinkersWithEnchants {
     public TinkersWithEnchants() { // deprecated for NeoForge/1.21+ but correct for Forge 1.20.1
         var bus = FMLJavaModLoadingContext.get().getModEventBus();
 
-        // Register common config
-        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, TWEConfig.COMMON_SPEC);
+        // Register configs
+        ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, TWEConfig.SERVER_SPEC);
+        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, TWEConfig.CLIENT_SPEC);
 
         // Register lifecycle events on the mod bus
         bus.addListener(this::commonSetup);
@@ -82,11 +83,7 @@ public final class TinkersWithEnchants {
     }
 
     private void commonSetup(FMLCommonSetupEvent event) {
-        LOGGER.info("Tinkers with Enchants initialised. "
-                + "table={} anvil={} enchantability={}",
-                TWEConfig.COMMON.allowEnchantingTable.get(),
-                TWEConfig.COMMON.allowAnvil.get(),
-                TWEConfig.COMMON.enchantability.get());
+        LOGGER.info("Tinkers with Enchants initialised.");
     }
 
     private void registerCommands(RegisterCommandsEvent event) {
