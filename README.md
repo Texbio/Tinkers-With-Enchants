@@ -38,8 +38,6 @@ Mods that use standard `EnchantmentCategory` (WEAPON, DIGGER, BOW, ARMOR, etc.) 
 |---|---|---|
 | `showGlint` | true | Show enchantment glint on TConstruct items (requires rejoin to take effect) |
 
-Enchantability is computed automatically from tool durability — higher-tier materials produce better enchantment rolls. Gold head materials receive a minimum of 22 (matching vanilla gold).
-
 ## Commands
 
 - `/twe tinkertype` — Shows the held tool's ToolActions, TConstruct tags, TWE enchantment categories, and compatible enchantments
