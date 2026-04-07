@@ -10,7 +10,7 @@ A Minecraft Forge mod for **1.20.1** that enables vanilla and modded enchantment
 - **Smart category mapping** — each tool type only gets enchantments that make sense (swords get Sharpness, pickaxes get Efficiency, bows get Power, etc.)
 - **Full enchantment effects** — Sharpness, Fire Aspect, Knockback, Sweeping Edge, Power, Flame, Multishot, Infinity, Lure, Unbreaking, all Protection variants, and more all work correctly
 - **Enchantment glint** — enchanted TConstruct items show the enchantment shimmer on tools and armor
-- **Stacking with modifiers** — enchantments stack with TConstruct's own modifier system (e.g. Sharpness + Quartz damage)
+- **Stacking with modifiers** — enchantments work with TConstruct's own modifier system (e.g. Sharpness + Quartz damage = whatever is higher)
 - **Modded enchantment support** — any mod that registers enchantments with standard `EnchantmentCategory` works automatically, plus custom categories are detected via probing
 
 ## Mod Compatibility
