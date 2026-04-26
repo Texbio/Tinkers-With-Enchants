@@ -9,6 +9,7 @@ import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.EnchantmentCategory;
 import net.minecraftforge.common.ToolAction;
 import net.minecraftforge.common.ToolActions;
+import net.minecraftforge.registries.ForgeRegistries;
 import slimeknights.tconstruct.library.tools.item.IModifiable;
 import slimeknights.tconstruct.library.tools.item.armor.ModifiableArmorItem;
 import slimeknights.tconstruct.library.tools.item.ranged.ModifiableBowItem;
@@ -45,9 +46,21 @@ import java.util.Set;
  *   <li>{@code tconstruct:modifiable/fishing_rods}      → FISHING_ROD</li>
  * </ul>
  *
- * <h3>Ranged: instanceof detection</h3>
- * {@code ModifiableBowItem} → BOW, {@code ModifiableCrossbowItem} → CROSSBOW.
- * Tags are NOT used for ranged because {@code modifiable/ranged} is too broad.
+ * <h3>Ranged: instanceof + tag fallback</h3>
+ * Vanilla TC bow/crossbow classes are detected via {@code instanceof}
+ * ({@code ModifiableBowItem} → BOW, {@code ModifiableCrossbowItem} → CROSSBOW).
+ * Addon mods that use TC's tag system but their own item classes are caught
+ * by the specific subtags {@code modifiable/ranged/crossbows} and
+ * {@code modifiable/ranged/longbows}. The parent {@code modifiable/ranged}
+ * tag is NOT used because it's too broad (includes staffs, javelins, fishing rods).
+ *
+ * <h3>Per-item overrides</h3>
+ * Hardcoded sets (WEAPON_EXCLUSIONS, CROSSBOW_EXTRAS) handle base TC items
+ * whose tags don't reflect their actual gameplay role:
+ * <ul>
+ *   <li>sledge_hammer, mattock, swasher → WEAPON stripped</li>
+ *   <li>swasher → CROSSBOW added (it's a launcher, not in ranged/crossbows)</li>
+ * </ul>
  *
  * <h3>Addon compatibility</h3>
  * This is fully automatic. Addons that register ToolActions in their
@@ -78,6 +91,35 @@ public final class TWEEnchantUtil {
             ItemTags.create(ResourceLocation.fromNamespaceAndPath("forge", "tools/tridents"));
     private static final TagKey<Item> TAG_SHIELDS =
             ItemTags.create(ResourceLocation.fromNamespaceAndPath("tconstruct", "modifiable/shields"));
+
+    // Specific ranged subtags — used as a fallback for addon mods that put
+    // their bows/crossbows in TC's tag system but don't extend the TC classes.
+    // We use these subtags rather than the parent modifiable/ranged tag because
+    // the parent is too broad (includes staffs, javelins, fishing rods).
+    private static final TagKey<Item> TAG_RANGED_CROSSBOWS =
+            ItemTags.create(ResourceLocation.fromNamespaceAndPath("tconstruct", "modifiable/ranged/crossbows"));
+    private static final TagKey<Item> TAG_RANGED_LONGBOWS =
+            ItemTags.create(ResourceLocation.fromNamespaceAndPath("tconstruct", "modifiable/ranged/longbows"));
+
+    // Per-item overrides for tools whose TC tags don't reflect their actual
+    // gameplay role. Sledge hammer, mattock, and swasher are tagged
+    // melee/primary by TC but aren't used as primary weapons by players —
+    // sledge_hammer is a 3x3 mining tool, mattock is a farming/path utility,
+    // and swasher is a fluid launcher (its sword_dig is just for cobwebs).
+    private static final Set<ResourceLocation> WEAPON_EXCLUSIONS = Set.of(
+            ResourceLocation.fromNamespaceAndPath("tconstruct", "sledge_hammer"),
+            ResourceLocation.fromNamespaceAndPath("tconstruct", "mattock"),
+            ResourceLocation.fromNamespaceAndPath("tconstruct", "swasher")
+    );
+
+    // Per-item additions for ranged items that mechanically use crossbow-style
+    // load-and-fire behavior but aren't registered as ModifiableCrossbowItem
+    // and aren't in modifiable/ranged/crossbows. The swasher fits here — it
+    // has draw_speed, is in ranged/launcher and ranged/quick_charge, but is
+    // a plain ModifiableItem.
+    private static final Set<ResourceLocation> CROSSBOW_EXTRAS = Set.of(
+            ResourceLocation.fromNamespaceAndPath("tconstruct", "swasher")
+    );
 
     public static Set<EnchantmentCategory> getCategories(ItemStack stack) {
         if (!(stack.getItem() instanceof IModifiable)) return Set.of();
@@ -138,9 +180,10 @@ public final class TWEEnchantUtil {
 
         // ── Tag-based fallback ─────────────────────────────────────────────
         // For tools with NO ToolActions (scythe, battlesign, melting_pan, etc.)
-        // OR tools that need WEAPON from melee/primary even though they have
-        // a DIGGER ToolAction (sledge hammer, vein hammer).
-        // Always check melee/primary for WEAPON (regardless of existing cats).
+        // and for tools tagged melee/primary that have a DIGGER-only ToolAction
+        // (sledge_hammer, scythe). Per-item exclusions further down strip
+        // WEAPON from items where this tagging doesn't reflect actual play
+        // (sledge_hammer, mattock).
         if (stack.is(TAG_MELEE_PRIMARY) && !cats.contains(EnchantmentCategory.WEAPON)) {
             cats.add(EnchantmentCategory.WEAPON);
         }
@@ -155,14 +198,30 @@ public final class TWEEnchantUtil {
             cats.add(EnchantmentCategory.FISHING_ROD);
         }
 
-        // ── Ranged: use instanceof, NOT tags ────────────────────────────────
-        // TConstruct's "modifiable/ranged" tag is too broad — includes staffs,
-        // javelins, swashers, fishing rods. Only actual bow/crossbow classes
-        // should get bow/crossbow enchantments.
+        // ── Ranged: instanceof first, then tag-based fallback ──────────────
+        // Fast path for vanilla TC: instanceof check on the dedicated classes.
         if (stack.getItem() instanceof ModifiableCrossbowItem) {
             cats.add(EnchantmentCategory.CROSSBOW);
         } else if (stack.getItem() instanceof ModifiableBowItem) {
             cats.add(EnchantmentCategory.BOW);
+        }
+
+        // Tag fallback for addon compat: addon mods that add bow/crossbow-like
+        // tools using TC's tag system but their own item classes still get
+        // BOW/CROSSBOW enchants. We use the SPECIFIC subtags (crossbows,
+        // longbows) rather than the parent ranged tag so that staffs, javelins,
+        // and fishing rods don't accidentally match.
+        if (!cats.contains(EnchantmentCategory.CROSSBOW) && stack.is(TAG_RANGED_CROSSBOWS)) {
+            cats.add(EnchantmentCategory.CROSSBOW);
+        }
+        if (!cats.contains(EnchantmentCategory.BOW) && stack.is(TAG_RANGED_LONGBOWS)) {
+            cats.add(EnchantmentCategory.BOW);
+        }
+
+        // Per-item additions for ranged items not in the standard subtags.
+        ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        if (itemId != null && CROSSBOW_EXTRAS.contains(itemId)) {
+            cats.add(EnchantmentCategory.CROSSBOW);
         }
 
         // ── Thrown weapons: trident-type items ─────────────────────────────
@@ -177,6 +236,15 @@ public final class TWEEnchantUtil {
                     && !(stack.getItem() instanceof ModifiableCrossbowItem)
                     && !stack.is(TAG_FISHING_ROD))) {
             cats.add(EnchantmentCategory.TRIDENT);
+        }
+
+        // ── Per-item WEAPON exclusions ──────────────────────────────────────
+        // Some TC tools land in melee/primary or get axe_dig but aren't really
+        // used as primary weapons (sledge_hammer, mattock, swasher). Strip
+        // WEAPON for those — they keep DIGGER, CROSSBOW, etc. as appropriate.
+        // itemId was looked up earlier in the ranged block.
+        if (itemId != null && WEAPON_EXCLUSIONS.contains(itemId)) {
+            cats.remove(EnchantmentCategory.WEAPON);
         }
 
         // ── Universal enchants (Mending, Unbreaking, Curse of Vanishing) ──
@@ -212,16 +280,18 @@ public final class TWEEnchantUtil {
             }
         }
 
-        // Infinity only on bows, not crossbows (matches vanilla behavior)
+        // Infinity only on BOW-category items (matches vanilla — crossbows can't have it).
+        // Uses category so tag-based addon bows (modifiable/ranged/longbows) qualify.
         if (enchantment == net.minecraft.world.item.enchantment.Enchantments.INFINITY_ARROWS) {
-            if (!(stack.getItem() instanceof ModifiableBowItem)) {
+            if (!categories.contains(EnchantmentCategory.BOW)) {
                 return false;
             }
         }
 
-        // Quick Charge only on crossbows
+        // Quick Charge only on CROSSBOW-category items.
+        // Uses category so tag-based addon crossbows + manual extras (swasher) qualify.
         if (enchantment == net.minecraft.world.item.enchantment.Enchantments.QUICK_CHARGE) {
-            if (!(stack.getItem() instanceof ModifiableCrossbowItem)) {
+            if (!categories.contains(EnchantmentCategory.CROSSBOW)) {
                 return false;
             }
         }
